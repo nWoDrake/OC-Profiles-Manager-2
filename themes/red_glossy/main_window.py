@@ -1844,11 +1844,12 @@ class OCProfilesManager(QMainWindow):
                 data = json.load(f)
             if "config" in data:
                 local_msi = self.config_mgr.get("msi_path")
-                self.config_mgr.config = data["config"]
-                imp_msi = data["config"].get("msi_path", "")
+                imported = dict(data["config"])
+                imp_msi = imported.get("msi_path", "")
                 if local_msi and not os.path.exists(imp_msi):
-                    self.config_mgr.config["msi_path"] = local_msi
-                self.config_mgr.save()
+                    imported["msi_path"] = local_msi
+                # Sostituzione atomica sotto lock (merge con DEFAULT_CONFIG)
+                self.config_mgr.replace_config(imported)
             if "profiles" in data:
                 from oc_core import is_managed_cfg as _is_mgd
                 for pn, files in data["profiles"].items():

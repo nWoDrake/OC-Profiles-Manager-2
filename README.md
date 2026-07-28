@@ -1,12 +1,15 @@
-# OC Profiles Manager v2.4.0
+# OC Profiles Manager v2.6.3
 
 Gestore di profili di overclocking per **MSI Afterburner** con interfaccia
 moderna in stile *dark glass*, telemetria GPU in tempo reale, monitoraggio
 automatico processi → profilo e editor avanzato della V/F Curve.
 
-> **Versione 2.4.0** — Refactor completo: bug fix critici, performance
-> migliorata, nuove feature (search, duplica, shortcut, export singolo,
-> statistiche history) e test unitari.
+> **Versione 2.6.3** — Theme system modulare (`themes/`), apply profili con
+> staging + backup + rollback, thread-safety completa della configurazione,
+> avvio MSI Afterburner con `-Profile1`.
+
+📘 Per la documentazione tecnica completa (architettura, algoritmi, formule
+della V/F Curve) vedi [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md).
 
 ---
 
@@ -101,40 +104,30 @@ di `MSIAfterburner.exe` e creare la struttura `Profiles/ProfilesManager/`.
 
 ```
 oc_profiles_manager/
-├── main.py                      # Entry point (logging, UAC, app launch)
-├── constants.py                 # Theme, stylesheet, default config, validazione
-├── oc_core.py                   # Business logic (NVML, profili, MSI, monitor)
+├── main.py                      # Entry point (logging, UAC, wizard, theme launch)
+├── constants.py                 # Default config, timing, suoni, validazione nomi
+├── oc_core.py                   # Business logic (NVML, config, profili, MSI, monitor)
 ├── oc_controller.py             # Layer di coordinamento tra core e UI
 ├── oc_history.py                # Persistenza history con statistiche
-├── oc_ui.py                     # Main window, pages, threading, tray
-├── oc_widgets.py                # Widget custom (gauge, chart, card, dialog)
 ├── oc_utils.py                  # Utility (atomic I/O, formatting, subprocess)
-├── profile_info_extractor.py    # Estrazione dati profilo per card view
+├── profile_info_extractor.py    # Estrazione dati profilo per card view (cache)
 ├── cfg_editor/
 │   ├── __init__.py
 │   ├── cfg_model.py             # Parser file VEN_*.cfg
-│   ├── vfcurve.py               # Encode/decode V/F Curve
+│   ├── vfcurve.py               # Encode/decode V/F Curve + algoritmo AB-like
 │   └── editor_widget.py         # Widget editor pyqtgraph
-├── tests/
-│   ├── test_sanitize.py
-│   ├── test_history.py
-│   ├── test_utils.py
-│   └── test_vfcurve.py
+├── themes/
+│   ├── __init__.py              # ThemeRegistry (discovery temi)
+│   ├── base.py                  # AppContext, ThemeDescriptor, IThemeMainWindow
+│   └── red_glossy/
+│       ├── __init__.py          # Descriptor del tema
+│       ├── style.py             # THEME dict + STYLESHEET Qt
+│       ├── widgets.py           # Widget custom (gauge, card, dialog, wizard)
+│       └── main_window.py       # Main window, pagine, thread, tray
+├── widgets_common/              # Widget riusabili tra temi
+├── TECHNICAL_SPEC.md            # Specifica tecnica completa
 └── requirements.txt
 ```
-
----
-
-## 🧪 Test
-
-```bash
-python tests/test_utils.py
-python tests/test_sanitize.py
-python tests/test_history.py
-python tests/test_vfcurve.py
-```
-
-I test core non richiedono Qt e possono essere eseguiti anche fuori da Windows.
 
 ---
 

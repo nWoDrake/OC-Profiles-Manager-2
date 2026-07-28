@@ -114,12 +114,15 @@ def sanitize_profile_name(name: str) -> Optional[str]:
         return None
     if _INVALID_CHARS_RE.search(name):
         return None
+    # Strip PRIMA dei check: "CON." non deve bypassare la blacklist
+    name = name.rstrip(". ")
+    if not name:
+        return None
     if name.upper() in _RESERVED_WINDOWS_NAMES:
         return None
     if name in _RESERVED_APP_NAMES:
         return None
-    name = name.rstrip(". ")
-    return name or None
+    return name
 
 
 # ============================================================================

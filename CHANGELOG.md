@@ -139,14 +139,6 @@ modifica per leggere il `THEME` dal `theme_context` invece che da `constants`.
 - Cleanup di `delete_profile` / `rename_profile` nel controller: aggiornano
   anche `process_priority` (lista) e `profile_icons`.
 
-### 🧪 Test
-
-Aggiunti test unitari core (eseguibili senza Qt):
-- `tests/test_sanitize.py`  — validazione nomi profilo
-- `tests/test_history.py`   — record, close_session, export CSV, summary
-- `tests/test_utils.py`     — atomic write, formatting durate
-- `tests/test_vfcurve.py`   — encode/decode roundtrip, apply edit
-
 ### 📚 Documentazione
 
 - README completo con shortcut, struttura progetto, installazione

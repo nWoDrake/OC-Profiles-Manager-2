@@ -138,24 +138,29 @@ class ProfileController:
         if not ok:
             return False
 
+        changes: Dict[str, Any] = {}
+
         # Pulisci associazioni che puntano al profilo eliminato
         assoc = self.config.get_associations()
         cleaned_assoc = {k: v for k, v in assoc.items() if v != name}
         if cleaned_assoc != assoc:
-            self.config.config["associations"] = cleaned_assoc
+            changes["associations"] = cleaned_assoc
 
         # Pulisci icona
         icons = dict(self.config.get("profile_icons", {}))
-        icons.pop(name, None)
-        self.config.config["profile_icons"] = icons
+        if name in icons:
+            icons.pop(name, None)
+            changes["profile_icons"] = icons
 
         # Pulisci priority list
         priority = self.config.get("process_priority", []) or []
         new_priority = [p for p in priority if p != name]
         if new_priority != priority:
-            self.config.config["process_priority"] = new_priority
+            changes["process_priority"] = new_priority
 
-        self.config.save()
+        if changes:
+            # Un solo update atomico sotto lock, un solo save
+            self.config.update(changes)
         return True
 
     def rename_profile(self, old: str, raw_new: str) -> Tuple[bool, str]:
@@ -169,24 +174,31 @@ class ProfileController:
         if not self.profiles.rename_profile(old, clean):
             return False, "Errore durante la rinomina."
 
+        changes: Dict[str, Any] = {}
+
         # Aggiorna associazioni
         assoc = self.config.get_associations()
+        changed_assoc = False
         for exe, prof in list(assoc.items()):
             if prof == old:
                 assoc[exe] = clean
-        self.config.config["associations"] = assoc
+                changed_assoc = True
+        if changed_assoc:
+            changes["associations"] = assoc
 
         # Aggiorna default_alias se rinominato
         if self.config.get("default_alias") == old:
-            self.config.config["default_alias"] = clean
+            changes["default_alias"] = clean
 
         # Aggiorna icona profilo
         icons = dict(self.config.get("profile_icons", {}))
         if old in icons:
             icons[clean] = icons.pop(old)
-            self.config.config["profile_icons"] = icons
+            changes["profile_icons"] = icons
 
-        self.config.save()
+        if changes:
+            # Un solo update atomico sotto lock, un solo save
+            self.config.update(changes)
 
         # Se rinomi il profilo attivo, aggiorna lo stato interno
         if self.current_profile == old:
@@ -241,8 +253,7 @@ class ProfileController:
             icons.pop(profile_name, None)
         else:
             icons[profile_name] = {"key": icon_key, "custom": custom_path}
-        self.config.config["profile_icons"] = icons
-        return self.config.save()
+        return self.config.set("profile_icons", icons)
 
     def get_profile_icon(self, profile_name: str) -> Tuple[str, str]:
         icons = self.config.get("profile_icons", {})

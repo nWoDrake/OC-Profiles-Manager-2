@@ -5,7 +5,6 @@ Tutti gli stili sono gestiti via objectName e STYLESHEET globale.
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from typing import Optional, Dict, List
 
@@ -18,6 +17,8 @@ from PySide6.QtCore import Qt, QRect, QTimer, QPropertyAnimation, Signal, QSize
 from PySide6.QtGui import (
     QPainter, QPainterPath, QColor, QPen, QFont, QPixmap, QIcon, QLinearGradient,
 )
+
+from oc_utils import popen_detached
 
 from .style import THEME, STYLESHEET
 
@@ -1448,7 +1449,7 @@ class SetupWizard(QDialog):
         if not self.msi_path:
             return
         try:
-            subprocess.Popen([self.msi_path, "-s"], creationflags=0x00000008)
+            popen_detached([self.msi_path, "-s"])
             self.step2_status.setText("MSI Afterburner aperto. Salva SLOT 1 e torna qui.")
             self.step2_status.setStyleSheet(f"color:{THEME['success']};font-size:12px;")
         except Exception as e:
