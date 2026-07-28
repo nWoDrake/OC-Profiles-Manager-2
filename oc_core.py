@@ -17,7 +17,6 @@ import logging
 import random
 import re
 import shutil
-import subprocess
 import threading
 import time
 from contextlib import contextmanager
@@ -33,8 +32,8 @@ except ImportError:  # pragma: no cover
 
 from constants import DEFAULT_CONFIG, SOUND_CONFIG, TIMING
 from oc_utils import (
-    CREATE_NO_WINDOW,
     atomic_write_json,
+    popen_detached,
     popen_hidden,
     run_hidden,
     safe_read_json,
@@ -331,42 +330,60 @@ class ConfigManager:
             return {**DEFAULT_CONFIG, **data}
         return DEFAULT_CONFIG.copy()
 
+    def _save_locked(self, retries: int = 3) -> bool:
+        """Scrive su disco. Da chiamare SOLO con self._lock già acquisito."""
+        return atomic_write_json(
+            self.config_path, self.config, indent=4, retries=retries
+        )
+
     def save(self, retries: int = 3) -> bool:
         with self._lock:
-            return atomic_write_json(
-                self.config_path, self.config, indent=4, retries=retries
-            )
+            return self._save_locked(retries)
 
-    # --- Access ---
+    # --- Access (tutte le operazioni sotto lock) ---
 
     def get(self, key: str, default: Any = None) -> Any:
-        return self.config.get(key, default)
+        with self._lock:
+            return self.config.get(key, default)
 
     def set(self, key: str, value: Any) -> bool:
-        self.config[key] = value
-        return self.save()
+        with self._lock:
+            self.config[key] = value
+            return self._save_locked()
 
     def update(self, mapping: Dict[str, Any]) -> bool:
-        """Aggiorna più chiavi insieme con un solo save."""
-        self.config.update(mapping)
-        return self.save()
+        """Aggiorna più chiavi insieme con un solo save (atomico)."""
+        with self._lock:
+            self.config.update(mapping)
+            return self._save_locked()
+
+    def replace_config(self, new_config: Dict[str, Any]) -> bool:
+        """Sostituisce l'intera config (merge con DEFAULT_CONFIG) in modo atomico."""
+        with self._lock:
+            self.config = {**DEFAULT_CONFIG, **new_config}
+            return self._save_locked()
 
     # --- Associations ---
 
     def get_associations(self) -> Dict[str, str]:
-        return self.config.get("associations", {})
+        with self._lock:
+            # Copia difensiva: il chiamante non può mutare lo stato interno
+            return dict(self.config.get("associations", {}))
 
     def add_association(self, exe_name: str, profile_name: str) -> bool:
-        if "associations" not in self.config:
-            self.config["associations"] = {}
-        self.config["associations"][exe_name] = profile_name
-        return self.save()
+        with self._lock:
+            assoc = dict(self.config.get("associations", {}))
+            assoc[exe_name] = profile_name
+            self.config["associations"] = assoc
+            return self._save_locked()
 
     def remove_association(self, exe_name: str) -> bool:
-        assoc = self.config.get("associations", {})
-        if exe_name in assoc:
-            del assoc[exe_name]
-            return self.save()
+        with self._lock:
+            assoc = dict(self.config.get("associations", {}))
+            if exe_name in assoc:
+                del assoc[exe_name]
+                self.config["associations"] = assoc
+                return self._save_locked()
         return False
 
 
@@ -778,8 +795,8 @@ class MSIAfterburnerController:
             args = [str(self.msi_path)]
             if show_window:
                 args.append("-s")
-                # flag 0x00000008 = DETACHED_PROCESS (mostra la sua finestra)
-                subprocess.Popen(args, creationflags=0x00000008)
+                # DETACHED_PROCESS: MSI mostra la sua finestra
+                popen_detached(args)
             else:
                 popen_hidden(args)
             return True

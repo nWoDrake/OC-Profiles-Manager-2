@@ -19,6 +19,7 @@ from __future__ import annotations
 import ctypes
 import logging
 import platform
+import subprocess
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -100,8 +101,10 @@ def request_admin_relaunch(logger: logging.Logger) -> bool:
     """Tenta rilancio con UAC; ritorna False per indicare exit-from-this-process."""
     logger.info("Rilancio con UAC...")
     try:
+        # list2cmdline: quoting corretto per argomenti con spazi
+        params = subprocess.list2cmdline(sys.argv)
         result = ctypes.windll.shell32.ShellExecuteW(
-            None, "runas", sys.executable, " ".join(sys.argv), None, 1,
+            None, "runas", sys.executable, params, None, 1,
         )
         if result <= 32:
             logger.error(f"UAC negato (codice: {result})")

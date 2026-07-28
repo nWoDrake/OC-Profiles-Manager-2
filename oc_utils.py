@@ -33,17 +33,28 @@ logger = logging.getLogger(__name__)
 CREATE_NO_WINDOW: int = 0x08000000
 DETACHED_PROCESS: int = 0x00000008
 
+_IS_WINDOWS = os.name == "nt"
+
 
 def run_hidden(args: list, **kwargs) -> subprocess.CompletedProcess:
     """Esegue subprocess.run nascondendo la console su Windows."""
-    kwargs.setdefault("creationflags", CREATE_NO_WINDOW)
+    if _IS_WINDOWS:
+        kwargs.setdefault("creationflags", CREATE_NO_WINDOW)
     kwargs.setdefault("capture_output", True)
     return subprocess.run(args, **kwargs)
 
 
 def popen_hidden(args: list, **kwargs) -> subprocess.Popen:
     """Avvia Popen nascondendo la console su Windows."""
-    kwargs.setdefault("creationflags", CREATE_NO_WINDOW)
+    if _IS_WINDOWS:
+        kwargs.setdefault("creationflags", CREATE_NO_WINDOW)
+    return subprocess.Popen(args, **kwargs)
+
+
+def popen_detached(args: list, **kwargs) -> subprocess.Popen:
+    """Avvia Popen come processo detached su Windows (mostra la sua finestra)."""
+    if _IS_WINDOWS:
+        kwargs.setdefault("creationflags", DETACHED_PROCESS)
     return subprocess.Popen(args, **kwargs)
 
 
