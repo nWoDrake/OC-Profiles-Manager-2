@@ -1,0 +1,122 @@
+2026-05-27 18:32:30 - __main__ - INFO - Config non trovato
+2026-05-27 18:32:30 - __main__ - INFO - Avvio wizard
+2026-05-27 18:32:30 - themes - INFO - Registrato tema: id='red_glossy' name='Red Glossy' v2.5.0
+2026-05-27 18:32:42 - __main__ - INFO - Config salvata: C:/Program Files (x86)/MSI Afterburner/MSIAfterburner.exe
+2026-05-27 18:32:42 - __main__ - INFO - Struttura creata
+2026-05-27 18:32:42 - __main__ - INFO - ============================================================
+2026-05-27 18:32:42 - __main__ - INFO - OCProfilesManager v2.6.3 - Avvio
+2026-05-27 18:32:42 - __main__ - INFO - ============================================================
+2026-05-27 18:32:42 - __main__ - INFO - Python: 3.13.7 (tags/v3.13.7:bcee1c3, Aug 14 2025, 14:15:11) [MSC v.1944 64 bit (AMD64)]
+2026-05-27 18:32:42 - __main__ - INFO - Platform: Windows-11-10.0.26200-SP0
+2026-05-27 18:32:42 - __main__ - INFO - Architecture: 64bit
+2026-05-27 18:32:42 - __main__ - INFO - Working Dir: C:\Users\Gianluk\Desktop\Sviluppo programma OC Profiles Manager con Perplexity\Antigravity Prova OC Manager\oc_profiles_manager5
+2026-05-27 18:32:42 - __main__ - INFO - Executable: c:\python313\python.exe
+2026-05-27 18:32:42 - __main__ - INFO - MSI Afterburner Path: C:/Program Files (x86)/MSI Afterburner/MSIAfterburner.exe
+2026-05-27 18:32:42 - __main__ - INFO - MSI Afterburner Exists: True
+2026-05-27 18:32:42 - oc_core - INFO - NVML inizializzato da: nvml.dll
+2026-05-27 18:32:42 - __main__ - INFO - GPU Monitor Mode: Hardware (NVML)
+2026-05-27 18:32:42 - __main__ - INFO - ------------------------------------------------------------
+2026-05-27 18:32:42 - themes - INFO - Discovery temi in: C:\Users\Gianluk\Desktop\Sviluppo programma OC Profiles Manager con Perplexity\Antigravity Prova OC Manager\oc_profiles_manager5\themes
+2026-05-27 18:32:42 - themes - INFO - Discovery completata: 1 tema/i caricato/i
+2026-05-27 18:32:42 - __main__ - INFO - Tema UI attivo: 'red_glossy' (Red Glossy v2.5.0)
+2026-05-27 18:32:42 - themes.base - INFO - Creazione MainWindow del tema 'red_glossy' (v2.5.0)
+2026-05-27 18:32:44 - themes.red_glossy.main_window - INFO - Sistema pronto. Monitor: Nvidia API
+2026-05-27 18:32:46 - oc_core - INFO - Profilo applicato: Default
+2026-05-27 18:32:46 - oc_controller - INFO - Profilo applicato: Default
+2026-05-27 18:32:46 - themes.red_glossy.main_window - INFO - Profilo applicato: Default
+2026-05-27 18:54:08 - __main__ - INFO - ============================================================
+2026-05-27 18:54:08 - __main__ - INFO - OCProfilesManager v2.6.3 - Avvio
+2026-05-27 18:54:08 - __main__ - INFO - ============================================================
+2026-05-27 18:54:08 - __main__ - INFO - Python: 3.13.7 (tags/v3.13.7:bcee1c3, Aug 14 2025, 14:15:11) [MSC v.1944 64 bit (AMD64)]
+2026-05-27 18:54:08 - __main__ - INFO - Platform: Windows-11-10.0.26200-SP0
+2026-05-27 18:54:08 - __main__ - INFO - Architecture: 64bit
+2026-05-27 18:54:08 - __main__ - INFO - Working Dir: C:\Users\Gianluk\Desktop\Sviluppo programma OC Profiles Manager con Perplexity\Antigravity Prova OC Manager\oc_profiles_manager5
+2026-05-27 18:54:08 - __main__ - INFO - Executable: c:\python313\python.exe
+2026-05-27 18:54:08 - __main__ - INFO - MSI Afterburner Path: C:/Program Files (x86)/MSI Afterburner/MSIAfterburner.exe
+2026-05-27 18:54:08 - __main__ - INFO - MSI Afterburner Exists: True
+2026-05-27 18:54:08 - oc_core - INFO - NVML inizializzato da: nvml.dll
+2026-05-27 18:54:08 - __main__ - INFO - GPU Monitor Mode: Hardware (NVML)
+2026-05-27 18:54:08 - __main__ - INFO - ------------------------------------------------------------
+2026-05-27 18:54:08 - themes - INFO - Discovery temi in: C:\Users\Gianluk\Desktop\Sviluppo programma OC Profiles Manager con Perplexity\Antigravity Prova OC Manager\oc_profiles_manager5\themes
+2026-05-27 18:54:08 - themes - INFO - Registrato tema: id='red_glossy' name='Red Glossy' v2.5.0
+2026-05-27 18:54:08 - themes - INFO - Discovery completata: 1 tema/i caricato/i
+2026-05-27 18:54:08 - __main__ - INFO - Tema UI attivo: 'red_glossy' (Red Glossy v2.5.0)
+2026-05-27 18:54:08 - themes.base - INFO - Creazione MainWindow del tema 'red_glossy' (v2.5.0)
+2026-05-27 18:54:08 - themes.red_glossy.main_window - INFO - Sistema pronto. Monitor: Nvidia API
+2026-05-27 18:54:11 - oc_core - INFO - Profilo applicato: Default
+2026-05-27 18:54:11 - oc_controller - INFO - Profilo applicato: Default
+2026-05-27 18:54:11 - themes.red_glossy.main_window - INFO - Profilo applicato: Default
+2026-05-27 18:54:16 - cfg_editor.editor_widget - INFO - CFG Editor: caricato VEN_10DE&DEV_2482&SUBSYS_14B210DE&REV_A1&BUS_1&DEV_0&FN_0.cfg [Profile1]
+2026-05-27 18:54:47 - cfg_editor.cfg_model - INFO - Profilo Profile1 salvato (preservando struttura) in C:\Program Files (x86)\MSI Afterburner\Profiles\ProfilesManager\Profile 2\VEN_10DE&DEV_2482&SUBSYS_14B210DE&REV_A1&BUS_1&DEV_0&FN_0.cfg
+2026-05-27 18:54:47 - cfg_editor.editor_widget - INFO - CFG Editor: caricato VEN_10DE&DEV_2482&SUBSYS_14B210DE&REV_A1&BUS_1&DEV_0&FN_0.cfg [Profile1]
+2026-05-27 18:54:47 - themes.red_glossy.main_window - INFO - CFG Editor: salvato VEN_10DE&DEV_2482&SUBSYS_14B210DE&REV_A1&BUS_1&DEV_0&FN_0.cfg
+2026-05-31 21:55:32 - __main__ - INFO - ============================================================
+2026-05-31 21:55:32 - __main__ - INFO - OCProfilesManager v2.6.3 - Avvio
+2026-05-31 21:55:32 - __main__ - INFO - ============================================================
+2026-05-31 21:55:32 - __main__ - INFO - Python: 3.13.7 (tags/v3.13.7:bcee1c3, Aug 14 2025, 14:15:11) [MSC v.1944 64 bit (AMD64)]
+2026-05-31 21:55:32 - __main__ - INFO - Platform: Windows-11-10.0.26200-SP0
+2026-05-31 21:55:32 - __main__ - INFO - Architecture: 64bit
+2026-05-31 21:55:32 - __main__ - INFO - Working Dir: C:\Users\Gianluk\Desktop\Sviluppo programma OC Profiles Manager con Perplexity\Antigravity Prova OC Manager\oc_profiles_manager5
+2026-05-31 21:55:32 - __main__ - INFO - Executable: c:\python313\python.exe
+2026-05-31 21:55:32 - __main__ - INFO - MSI Afterburner Path: C:/Program Files (x86)/MSI Afterburner/MSIAfterburner.exe
+2026-05-31 21:55:32 - __main__ - INFO - MSI Afterburner Exists: True
+2026-05-31 21:55:32 - oc_core - INFO - NVML inizializzato da: nvml.dll
+2026-05-31 21:55:32 - __main__ - INFO - GPU Monitor Mode: Hardware (NVML)
+2026-05-31 21:55:32 - __main__ - INFO - ------------------------------------------------------------
+2026-05-31 21:55:32 - themes - INFO - Discovery temi in: C:\Users\Gianluk\Desktop\Sviluppo programma OC Profiles Manager con Perplexity\Antigravity Prova OC Manager\oc_profiles_manager5\themes
+2026-05-31 21:55:32 - themes - INFO - Registrato tema: id='red_glossy' name='Red Glossy' v2.5.0
+2026-05-31 21:55:32 - themes - INFO - Discovery completata: 1 tema/i caricato/i
+2026-05-31 21:55:32 - __main__ - INFO - Tema UI attivo: 'red_glossy' (Red Glossy v2.5.0)
+2026-05-31 21:55:32 - themes.base - INFO - Creazione MainWindow del tema 'red_glossy' (v2.5.0)
+2026-05-31 21:55:33 - themes.red_glossy.main_window - INFO - Sistema pronto. Monitor: Nvidia API
+2026-05-31 21:55:36 - oc_core - INFO - Profilo applicato: Default
+2026-05-31 21:55:36 - oc_controller - INFO - Profilo applicato: Default
+2026-05-31 21:55:36 - themes.red_glossy.main_window - INFO - Profilo applicato: Default
+2026-05-31 21:55:41 - oc_core - INFO - NVML shutdown completato
+2026-05-31 21:55:41 - __main__ - INFO - Terminato (exit: 0)
+2026-07-28 02:27:46 - __main__ - INFO - ============================================================
+2026-07-28 02:27:46 - __main__ - INFO - OCProfilesManager v2.6.3 - Avvio
+2026-07-28 02:27:46 - __main__ - INFO - ============================================================
+2026-07-28 02:27:46 - __main__ - INFO - Python: 3.13.7 (tags/v3.13.7:bcee1c3, Aug 14 2025, 14:15:11) [MSC v.1944 64 bit (AMD64)]
+2026-07-28 02:27:46 - __main__ - INFO - Platform: Windows-11-10.0.26200-SP0
+2026-07-28 02:27:46 - __main__ - INFO - Architecture: 64bit
+2026-07-28 02:27:46 - __main__ - INFO - Working Dir: C:\Users\Gianluk\Desktop\Sviluppo programma OC Profiles Manager con Perplexity\Antigravity Prova OC Manager\oc_profiles_manager5
+2026-07-28 02:27:46 - __main__ - INFO - Executable: c:\python313\python.exe
+2026-07-28 02:27:46 - __main__ - INFO - MSI Afterburner Path: C:/Program Files (x86)/MSI Afterburner/MSIAfterburner.exe
+2026-07-28 02:27:46 - __main__ - INFO - MSI Afterburner Exists: True
+2026-07-28 02:27:46 - oc_core - INFO - NVML inizializzato da: nvml.dll
+2026-07-28 02:27:46 - __main__ - INFO - GPU Monitor Mode: Hardware (NVML)
+2026-07-28 02:27:46 - __main__ - INFO - ------------------------------------------------------------
+2026-07-28 02:27:46 - themes - INFO - Discovery temi in: C:\Users\Gianluk\Desktop\Sviluppo programma OC Profiles Manager con Perplexity\Antigravity Prova OC Manager\oc_profiles_manager5\themes
+2026-07-28 02:27:46 - themes - INFO - Registrato tema: id='red_glossy' name='Red Glossy' v2.5.0
+2026-07-28 02:27:46 - themes - INFO - Discovery completata: 1 tema/i caricato/i
+2026-07-28 02:27:46 - __main__ - INFO - Tema UI attivo: 'red_glossy' (Red Glossy v2.5.0)
+2026-07-28 02:27:46 - themes.base - INFO - Creazione MainWindow del tema 'red_glossy' (v2.5.0)
+2026-07-28 02:27:46 - themes.red_glossy.main_window - INFO - Sistema pronto. Monitor: Nvidia API
+2026-07-28 02:27:49 - oc_core - INFO - Profilo applicato: Default
+2026-07-28 02:27:49 - oc_controller - INFO - Profilo applicato: Default
+2026-07-28 02:27:49 - themes.red_glossy.main_window - INFO - Profilo applicato: Default
+2026-07-28 02:28:08 - oc_core - INFO - NVML shutdown completato
+2026-07-28 02:28:08 - __main__ - INFO - Terminato (exit: 0)
+2026-07-28 02:37:23 - __main__ - INFO - ============================================================
+2026-07-28 02:37:23 - __main__ - INFO - OCProfilesManager v2.6.3 - Avvio
+2026-07-28 02:37:23 - __main__ - INFO - ============================================================
+2026-07-28 02:37:23 - __main__ - INFO - Python: 3.13.7 (tags/v3.13.7:bcee1c3, Aug 14 2025, 14:15:11) [MSC v.1944 64 bit (AMD64)]
+2026-07-28 02:37:23 - __main__ - INFO - Platform: Windows-11-10.0.26200-SP0
+2026-07-28 02:37:23 - __main__ - INFO - Architecture: 64bit
+2026-07-28 02:37:23 - __main__ - INFO - Working Dir: C:\Users\Gianluk\Desktop\Sviluppo programma OC Profiles Manager con Perplexity\Antigravity Prova OC Manager\oc_profiles_manager5
+2026-07-28 02:37:23 - __main__ - INFO - Executable: c:\python313\python.exe
+2026-07-28 02:37:23 - __main__ - INFO - MSI Afterburner Path: C:/Program Files (x86)/MSI Afterburner/MSIAfterburner.exe
+2026-07-28 02:37:23 - __main__ - INFO - MSI Afterburner Exists: True
+2026-07-28 02:37:23 - oc_core - INFO - NVML inizializzato da: nvml.dll
+2026-07-28 02:37:23 - __main__ - INFO - GPU Monitor Mode: Hardware (NVML)
+2026-07-28 02:37:23 - __main__ - INFO - ------------------------------------------------------------
+2026-07-28 02:37:23 - themes - INFO - Discovery temi in: C:\Users\Gianluk\Desktop\Sviluppo programma OC Profiles Manager con Perplexity\Antigravity Prova OC Manager\oc_profiles_manager5\themes
+2026-07-28 02:37:23 - themes - INFO - Registrato tema: id='red_glossy' name='Red Glossy' v2.5.0
+2026-07-28 02:37:23 - themes - INFO - Discovery completata: 1 tema/i caricato/i
+2026-07-28 02:37:23 - __main__ - INFO - Tema UI attivo: 'red_glossy' (Red Glossy v2.5.0)
+2026-07-28 02:37:23 - themes.base - INFO - Creazione MainWindow del tema 'red_glossy' (v2.5.0)
+2026-07-28 02:37:23 - themes.red_glossy.main_window - INFO - Sistema pronto. Monitor: Nvidia API
+2026-07-28 02:37:25 - oc_core - INFO - Profilo applicato: Default
+2026-07-28 02:37:25 - oc_controller - INFO - Profilo applicato: Default
+2026-07-28 02:37:25 - themes.red_glossy.main_window - INFO - Profilo applicato: Default
