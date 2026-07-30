@@ -776,17 +776,13 @@ class MSIAfterburnerController:
         self.msi_path = Path(msi_path)
 
     def is_running(self) -> bool:
+        # Riusa lo snapshot TTL condiviso: zero scan psutil aggiuntivi
+        # quando il monitor processi ha già scansionato in questo secondo.
         try:
-            for p in psutil.process_iter(["name"]):
-                try:
-                    name = p.info.get("name")
-                    if name and name.lower() == self.PROCESS_NAME:
-                        return True
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
+            return self.PROCESS_NAME in snapshot_running_exes()
         except Exception as e:  # noqa: BLE001
             logger.debug(f"is_running error: {e}")
-        return False
+            return False
 
     def start(self, show_window: bool = False) -> bool:
         if not self.msi_path.exists():
@@ -864,6 +860,9 @@ class ProcessMonitorLogic:
         self._had_active_app: bool = False
         self._editing_paused: bool = False
         self._user_paused: bool = False  # pausa esplicita dall'utente
+        # Config prefetch (aggiornati una volta per tick in check_processes)
+        self._cfg_mode: str = self.MODE_FIRST_MATCH
+        self._cfg_priority: List[str] = []
 
     # --- Pause control ---
 
@@ -934,6 +933,11 @@ class ProcessMonitorLogic:
         associations = self.config.get_associations()
         active_exes: Set[str] = snapshot_running_exes() if associations else set()
 
+        # Prefetch config una volta per tick (evita get() ripetuti sotto lock)
+        self._cfg_mode = self.config.get(
+            "process_match_mode", self.MODE_FIRST_MATCH)
+        self._cfg_priority = self.config.get("process_priority", []) or []
+
         # Mutate state UNDER lock
         with self._lock:
             if self._editing_paused or self._user_paused:
@@ -995,8 +999,8 @@ class ProcessMonitorLogic:
         return None
 
     def _find_matching_exe(self, assoc: Dict[str, str], active: Set[str]) -> str:
-        mode = self.config.get("process_match_mode", self.MODE_FIRST_MATCH)
-        priority: List[str] = self.config.get("process_priority", [])
+        mode = self._cfg_mode
+        priority: List[str] = self._cfg_priority
         matched = [exe for exe in assoc if exe.lower() in active]
         if not matched:
             return ""

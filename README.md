@@ -1,12 +1,13 @@
-# OC Profiles Manager v2.6.3
+# OC Profiles Manager v2.7.0
 
 Gestore di profili di overclocking per **MSI Afterburner** con interfaccia
 moderna in stile *dark glass*, telemetria GPU in tempo reale, monitoraggio
 automatico processi → profilo e editor avanzato della V/F Curve.
 
-> **Versione 2.6.3** — Theme system modulare (`themes/`), apply profili con
-> staging + backup + rollback, thread-safety completa della configurazione,
-> avvio MSI Afterburner con `-Profile1`.
+> **Versione 2.7.0** — Nuovo tema **Liquid Glass** con animazioni, CLI
+> headless `--apply`, backup automatico profili, scheduler orario, hotkey
+> globali Ctrl+Alt+1..9, watchdog temperatura GPU, confronto curve V/F,
+> check aggiornamenti GitHub e telemetria GPU fuori dal thread UI.
 
 📘 Per la documentazione tecnica completa (architettura, algoritmi, formule
 della V/F Curve) vedi [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md).
@@ -26,10 +27,21 @@ della V/F Curve) vedi [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md).
 - 🤖 Cambio profilo automatico in base al **processo in primo piano**
 - 3 modalità: `first_match`, `stable_no_switch`, `priority_list`
 - ⏸ Pausa monitoraggio manuale dall'UI
+- ⏰ **Scheduler orario**: regole a fasce orarie (anche a cavallo della
+  mezzanotte) che applicano un profilo automaticamente
+- ⌨️ **Hotkey globali** `Ctrl+Alt+1..9` per applicare l'N° profilo da
+  qualunque app (anche fullscreen)
+- 🌡️ **Watchdog temperatura**: sopra soglia per N secondi → profilo safe
+- 💻 **CLI headless**: `python main.py --apply "NomeProfilo"` per script e
+  Task Scheduler (exit code 0/1/2/3)
+- 💾 **Backup automatico** zip dei profili all'avvio con retention
+- 🔄 **Check aggiornamenti** dalla pagina Releases di GitHub
 
 ### Editor avanzato
 - 🎛️ **CFG Editor** integrato per la V/F Curve di MSI Afterburner
 - Drag interattivo dei punti, ghost curve originale, undo/redo
+- 🆚 **CONFRONTA**: sovrappone la curva di un altro profilo per il tuning
+  comparativo
 
 ### Telemetria
 - 📊 GPU NVML: temperatura, load, fan, core clock, mem clock, power, VRAM
@@ -45,6 +57,9 @@ della V/F Curve) vedi [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md).
 - ⌨️ **Shortcut keyboard** completi (vedi sotto)
 - 🔔 Toast notification + sistema tray con menu profili rapidi
 - 🎨 Acrylic glass effect su Windows
+- 🧊 **2 temi UI completi**: *Red Glossy* (classico) e *Liquid Glass*
+  (traslucido, accento ciano, animazioni fluide) — selezionabili da
+  Impostazioni → Aspetto
 
 ---
 
@@ -98,6 +113,15 @@ python main.py
 Al primo avvio si aprirà un **wizard** in 3 passi per configurare il percorso
 di `MSIAfterburner.exe` e creare la struttura `Profiles/ProfilesManager/`.
 
+### CLI headless
+
+```bash
+# Applica un profilo senza aprire la GUI (per script / Task Scheduler)
+python main.py --apply "NomeProfilo"
+# Exit code: 0 = ok, 1 = errore apply, 2 = MSI AB non configurato,
+#            3 = profilo inesistente
+```
+
 ---
 
 ## 🗂 Struttura del progetto
@@ -110,6 +134,8 @@ oc_profiles_manager/
 ├── oc_controller.py             # Layer di coordinamento tra core e UI
 ├── oc_history.py                # Persistenza history con statistiche
 ├── oc_utils.py                  # Utility (atomic I/O, formatting, subprocess)
+├── oc_services.py               # Servizi v2.7: backup, scheduler, watchdog,
+│                                #   hotkey globali, update checker
 ├── profile_info_extractor.py    # Estrazione dati profilo per card view (cache)
 ├── cfg_editor/
 │   ├── __init__.py
@@ -119,11 +145,15 @@ oc_profiles_manager/
 ├── themes/
 │   ├── __init__.py              # ThemeRegistry (discovery temi)
 │   ├── base.py                  # AppContext, ThemeDescriptor, IThemeMainWindow
-│   └── red_glossy/
+│   ├── red_glossy/
+│   │   ├── __init__.py          # Descriptor del tema
+│   │   ├── style.py             # THEME dict + STYLESHEET Qt
+│   │   ├── widgets.py           # Widget custom (gauge, card, dialog, wizard)
+│   │   └── main_window.py       # Main window, pagine, thread, tray
+│   └── liquid_glass/
 │       ├── __init__.py          # Descriptor del tema
-│       ├── style.py             # THEME dict + STYLESHEET Qt
-│       ├── widgets.py           # Widget custom (gauge, card, dialog, wizard)
-│       └── main_window.py       # Main window, pagine, thread, tray
+│       ├── style.py             # Palette liquid + layer QSS aggiuntivo
+│       └── main_window.py       # Re-skin + animazioni (fade, transizioni)
 ├── widgets_common/              # Widget riusabili tra temi
 ├── TECHNICAL_SPEC.md            # Specifica tecnica completa
 └── requirements.txt

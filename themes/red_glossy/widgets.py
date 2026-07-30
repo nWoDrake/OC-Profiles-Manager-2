@@ -1090,6 +1090,7 @@ class ProfileCardView(QWidget):
 
         self._cards: Dict[str, ProfileCard] = {}
         self._selected_name: str = ""
+        self._last_layout: tuple = (0, ())  # (cols, ordine nomi) — evita reflow inutili
 
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
@@ -1152,6 +1153,8 @@ class ProfileCardView(QWidget):
             col = i % cols
             self._grid.addWidget(card, row, col)
 
+        self._last_layout = (cols, tuple(self._cards.keys()))
+
     def get_selected(self) -> str:
         return self._selected_name
 
@@ -1172,10 +1175,15 @@ class ProfileCardView(QWidget):
             QTimer.singleShot(50, self._relayout)
 
     def _relayout(self):
-        """Ricalcola il grid layout."""
+        """Ricalcola il grid layout (no-op se colonne e ordine invariati)."""
         from constants import CARD_MIN_WIDTH
         available_w = self._scroll.viewport().width() - 20
         cols = max(1, available_w // (CARD_MIN_WIDTH + 12))
+
+        signature = (cols, tuple(self._cards.keys()))
+        if signature == self._last_layout:
+            return  # niente da rifare
+        self._last_layout = signature
 
         cards = list(self._cards.values())
         for card in cards:

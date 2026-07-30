@@ -1,4 +1,4 @@
-# OC Profiles Manager — Specifica Tecnica Completa (v2.6.3)
+# OC Profiles Manager — Specifica Tecnica Completa (v2.7.0)
 
 > Questo documento è la **specifica di riferimento** dell'applicazione.
 > Descrive architettura, ogni modulo, ogni classe/funzione, i formati file,
@@ -94,7 +94,7 @@ File runtime nella cartella dell'app (esclusi da git):
 ### 2.1 Info app
 ```python
 APP_NAME = "OCProfilesManager"
-APP_VERSION = "2.6.3"
+APP_VERSION = "2.7.0"
 BASE_DIR = Path(__file__).parent
 ```
 
@@ -382,7 +382,7 @@ con questo layer.
 ### 5.5 Export / Import profilo (JSON)
 ```jsonc
 {
-  "meta": { "app": "OCProfilesManager", "version": "2.6.3",
+  "meta": { "app": "OCProfilesManager", "version": "2.7.0",
             "exported": "<ISO datetime>", "profile_name": "<nome>" },
   "icon": { "key": "<preset>", "custom": "<path>" },
   "files": { "VEN_....cfg": "<contenuto testo completo>" }
@@ -718,3 +718,97 @@ che espone `get_descriptor()`), `get(id)`, `get_or_default(id)`,
 8. `main_window.py` usa terminatori LF, `widgets.py` CRLF — preservare i
    line ending esistenti quando si modifica.
 9. Il core (oc_*) non importa mai PySide6: la UI vive solo nei temi.
+10. `oc_services.py` non importa mai PySide6/Qt: i servizi v2.7 sono
+    puro Python (thread, zipfile, urllib, ctypes) e vengono orchestrati
+    dalla UI del tema attivo tramite timer/thread Qt.
+
+---
+
+## 12. Servizi v2.7 (`oc_services.py`)
+
+Modulo senza dipendenze Qt che ospita i servizi introdotti nella 2.7.0.
+
+### 12.1 `BackupManager`
+- Directory backup: `<parent di ProfilesManager>/ProfilesManager_Backups`.
+- `create_backup()` crea `profiles_backup_YYYYMMDD_HHMMSS[_N].zip`
+  (suffisso `_N` in caso di collisione nello stesso secondo) tramite
+  file temporaneo + `os.replace`. Esclude `_staging_tmp` e `_backup_tmp`
+  (pruning di `dirs[:]` in `os.walk`).
+- `prune_old(retention)` mantiene gli N zip più recenti.
+- `auto_backup(retention)` = create + prune, pensato per thread daemon
+  all'avvio (config `auto_backup_enabled` / `auto_backup_retention`).
+- `restore_backup(zip_path)` estrae con guardia anti zip-slip
+  (ogni membro deve risolvere dentro la root di destinazione).
+
+### 12.2 `ProfileScheduler`
+- Regole in config `schedule_rules`: `{"start": "HH:MM", "end": "HH:MM",
+  "profile": "<nome>"}`; range a cavallo di mezzanotte supportati
+  (`start > end` → attivo se `now >= start or now < end`).
+- `check(rules)` è **edge-triggered**: memorizza la firma della regola
+  attiva e restituisce il profilo solo al cambio di stato (nessun
+  re-apply continuo). `reset()` azzera la memoria (da chiamare quando
+  le regole vengono modificate).
+- La UI lo interroga con un `QTimer` da 30 s (`scheduler_enabled`).
+
+### 12.3 `TempWatchdog`
+- `feed(temp_c)` con timing monotonico: se la temperatura resta sopra
+  `temp_watchdog_threshold` per `temp_watchdog_duration_s` secondi
+  consecutivi restituisce `True` **una sola volta** (latch per episodio).
+- Il latch si riarma solo quando la temperatura scende di almeno 5 °C
+  sotto soglia (isteresi). `reset()` azzera lo stato.
+- La UI, sul trigger, applica `temp_watchdog_profile`, suona l'allarme
+  e mostra una notifica.
+
+### 12.4 `UpdateChecker`
+- Interroga `https://api.github.com/repos/nWoDrake/OC-Profiles-Manager-2/releases/latest`
+  (timeout 6 s). Confronto versioni numerico tolleranti al prefisso `v`.
+- `check()` → `{"version", "url", "name"}` se esiste una release più
+  recente di `APP_VERSION`, altrimenti `None`. Eseguito in thread daemon
+  all'avvio se `check_updates` è attivo; ogni errore di rete è silenziato.
+
+### 12.5 `GlobalHotkeyListener`
+- Solo Windows: `RegisterHotKey` (Ctrl+Alt, id 100+n) per i tasti 1..9 e
+  message-loop `GetMessageW` in thread daemon; stop via
+  `PostThreadMessageW(WM_QUIT)`.
+- Callback `on_hotkey(n)`: la UI mappa n → n-esimo profilo (ordinato) e
+  lo applica. Config: `global_hotkeys_enabled`.
+
+### 12.6 CLI headless (`main.py --apply <profilo>`)
+- Intercettato **prima** della creazione di `QApplication`: costruisce il
+  grafo di dominio senza UI, esegue `apply_profile_blocking` e termina
+  con exit code 0 (ok), 1 (profilo inesistente), 2 (apply fallito),
+  3 (errore setup). `controller.shutdown()` garantito in `finally`.
+
+### 12.7 `GpuStatsThread` (nel tema)
+- `QThread` che campiona la telemetria GPU fuori dal main thread ed
+  emette `stats_ready(dict)`; la UI aggiorna le label nel proprio thread
+  e alimenta il watchdog. Sostituisce il vecchio `QTimer` bloccante.
+  `set_paused()` quando la finestra è nascosta in tray.
+
+---
+
+## 13. Tema "Liquid Glass" (`themes/liquid_glass/`)
+
+Secondo tema ufficiale, registrato via `ThemeRegistry` (id
+`liquid_glass`). Strategia: **riuso totale** di `red_glossy` con
+riverniciatura runtime.
+
+- `style.py` — `LIQUID_THEME` (palette ciano/vetro: primary `#4dd6ff`,
+  bg scuro blu-notte, radius 16/18 px, superfici rgba semi-trasparenti)
+  + `build_extra_qss()` (overlay QSS: gradienti, pillole nav, card in
+  vetro, input, scrollbar) + `build_liquid_stylesheet()` = stylesheet
+  red_glossy rigenerato con la nuova palette + overlay.
+- `main_window.py` — muta `themes.red_glossy.style.THEME` **prima** di
+  importare `OCProfilesManager`, poi definisce
+  `LiquidGlassManager(OCProfilesManager)` con 4 override:
+  - `show_window()` → fade-in `QPropertyAnimation` su `windowOpacity`
+    (320 ms, OutCubic);
+  - `_switch_page()` → transizione con `QGraphicsOpacityEffect` (220 ms,
+    effetto rimosso a fine animazione per compatibilità pyqtgraph);
+  - `_apply_glass_effect()` → acrylic Windows (stato 4, fallback blur 3)
+    con tinta blu `0x33261407`;
+  - `paintEvent()` → doppio bordo custom (glow ciano + rifrazione
+    bianca).
+- Nessuna duplicazione di logica applicativa: ogni fix su red_glossy si
+  propaga automaticamente al tema Liquid Glass.
+
