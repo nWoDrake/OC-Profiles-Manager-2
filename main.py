@@ -60,6 +60,31 @@ def setup_logging() -> logging.Logger:
     return logging.getLogger(__name__)
 
 
+def _apply_config_log_level(logger: logging.Logger) -> None:
+    """
+    Applica la chiave config `log_level` al logging CONSOLE.
+
+    Il file di log resta sempre a DEBUG (diagnostica completa); la config
+    regola solo il rumore in console. Letto direttamente dal JSON per non
+    dover istanziare ConfigManager prima del boot.
+    """
+    try:
+        from oc_utils import safe_read_json
+        cfg = safe_read_json(BASE_DIR / "oc_manager_data.json", default={}) or {}
+        level_name = str(cfg.get("log_level", "INFO")).upper()
+        level = getattr(logging, level_name, None)
+        if not isinstance(level, int):
+            return
+        for h in logging.getLogger().handlers:
+            # Solo lo StreamHandler console: RotatingFileHandler è una
+            # sottoclasse di StreamHandler, quindi confrontiamo il tipo esatto.
+            if type(h) is logging.StreamHandler:
+                h.setLevel(level)
+        logger.debug(f"Log level console da config: {level_name}")
+    except Exception as e:  # noqa: BLE001
+        logger.debug(f"log_level config non applicato: {e}")
+
+
 def log_startup_diagnostics(logger: logging.Logger) -> None:
     logger.info("=" * 60)
     logger.info(f"{APP_NAME} v{APP_VERSION} - Avvio")
@@ -171,14 +196,79 @@ def _build_app_context(start_minimized: bool):
 
 
 # ============================================================================
+# CLI HEADLESS — `--apply <profilo>` (Feature A, v2.7)
+# ============================================================================
+
+def _run_cli_apply(logger: logging.Logger, profile_name: str) -> int:
+    """
+    Applica un profilo da riga di comando SENZA avviare la GUI.
+
+    Exit code:
+        0 = profilo applicato
+        1 = errore durante l'apply
+        2 = MSI Afterburner non configurato
+        3 = profilo inesistente
+    """
+    from oc_controller import ProfileController
+    from oc_core import (
+        ConfigManager, MSIAfterburnerController, ProcessMonitorLogic,
+        ProfileManager,
+    )
+
+    config_mgr = ConfigManager(BASE_DIR / "oc_manager_data.json")
+    msi_path = config_mgr.get("msi_path")
+    if not msi_path or not Path(msi_path).exists():
+        logger.error("CLI --apply: MSI Afterburner non configurato")
+        print("ERRORE: MSI Afterburner non configurato. Avvia prima la GUI.")
+        return 2
+
+    profile_mgr = ProfileManager(msi_path, log_callback=None)
+    msi_ctrl = MSIAfterburnerController(msi_path)
+    process_logic = ProcessMonitorLogic(config_mgr)
+    controller = ProfileController(
+        config_mgr, profile_mgr, msi_ctrl, process_logic, log_callback=None,
+    )
+
+    try:
+        available = profile_mgr.list_profiles() + ["Default"]
+        if profile_name not in available:
+            logger.error(f"CLI --apply: profilo '{profile_name}' inesistente")
+            print(f"ERRORE: profilo '{profile_name}' inesistente.")
+            print(f"Profili disponibili: {', '.join(available)}")
+            return 3
+
+        logger.info(f"CLI --apply: applico '{profile_name}'")
+        ok = controller.apply_profile_blocking(profile_name)
+        if ok:
+            print(f"OK: profilo '{profile_name}' applicato.")
+            return 0
+        print(f"ERRORE: apply di '{profile_name}' fallito (vedi log).")
+        return 1
+    finally:
+        try:
+            controller.shutdown()
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"CLI shutdown: {e}")
+
+
+# ============================================================================
 # MAIN
 # ============================================================================
 
 def main() -> int:
     logger = setup_logging()
+    _apply_config_log_level(logger)
 
     if not check_admin_or_relaunch(logger):
         return 0
+
+    # CLI headless: --apply <profilo> (nessuna GUI, exit code parlante)
+    if "--apply" in sys.argv:
+        idx = sys.argv.index("--apply")
+        if idx + 1 >= len(sys.argv):
+            print("Uso: python main.py --apply \"NomeProfilo\"")
+            return 3
+        return _run_cli_apply(logger, sys.argv[idx + 1])
 
     start_minimized = "--minimized" in sys.argv
     if start_minimized:

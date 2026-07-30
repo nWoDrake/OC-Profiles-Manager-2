@@ -142,6 +142,10 @@ class VFEditorWidget(QWidget):
         # Punti preview live (aggiornati durante drag)
         self.current_points: Optional[List[VFPoint]] = None
 
+        # Curva di confronto (Feature C, v2.7): punti di un altro profilo
+        self._compare_points: Optional[List[VFPoint]] = None
+        self._compare_label: str = ""
+
         self.selected_index: Optional[int] = None
         self.last_edited_index: Optional[int] = None
         self.last_edited_delta_mhz: int = 0
@@ -441,6 +445,14 @@ class VFEditorWidget(QWidget):
         self.btn_toggle_ghost.clicked.connect(self._toggle_ghost_curve)
         self._refresh_toggle_ghost_style()
 
+        self.btn_compare = QPushButton("CONFRONTA")
+        self.btn_compare.setProperty("class", "ToggleBtn")
+        self.btn_compare.setToolTip(
+            "Sovrapponi la curva V/F di un altro profilo per confronto")
+        self.btn_compare.setCheckable(True)
+        self.btn_compare.clicked.connect(self._toggle_compare_curve)
+        self._refresh_compare_style()
+
         lbl_profile = QLabel("Profilo:")
         lbl_profile.setStyleSheet("color: white; font-size: 13px;")
         self.combo_profile = QComboBox()
@@ -457,6 +469,7 @@ class VFEditorWidget(QWidget):
         layout.addWidget(self.btn_undo)
         layout.addWidget(self.btn_redo)
         layout.addWidget(self.btn_toggle_ghost)
+        layout.addWidget(self.btn_compare)
         layout.addSpacing(15)
         layout.addWidget(lbl_profile)
         layout.addWidget(self.combo_profile)
@@ -589,6 +602,13 @@ class VFEditorWidget(QWidget):
         self.consolidated_curve_item = self.plot.plot(
             [], [],
             pen=pg.mkPen(color=(0, 255, 136, 30), width=1, style=Qt.PenStyle.DotLine),
+        )
+
+        # Curva di confronto (altro profilo, Feature C v2.7)
+        self.compare_curve_item = self.plot.plot(
+            [], [],
+            pen=pg.mkPen(color=(0, 200, 255, 160), width=2,
+                         style=Qt.PenStyle.DashLine),
         )
 
         # Curva corrente (preview live)
@@ -1103,6 +1123,83 @@ class VFEditorWidget(QWidget):
         xs = [p.v_mv for p in self.original_base_points]
         ys = [p.f_mhz + p.c_delta for p in self.original_base_points]
         self.ghost_curve_item.setData(xs, ys)
+
+    # ================================================================
+    # COMPARE CURVE (Feature C, v2.7)
+    # ================================================================
+
+    def _toggle_compare_curve(self):
+        """Attiva/disattiva la sovrapposizione della curva di un altro profilo."""
+        if not self.btn_compare.isChecked():
+            self._compare_points = None
+            self._compare_label = ""
+            self.compare_curve_item.setData([], [])
+            self._refresh_compare_style()
+            return
+
+        # Scegli il cfg da confrontare (parte dalla cartella ProfilesManager)
+        from constants import BASE_DIR
+        start_dir = str(Path.cwd())
+        try:
+            from oc_core import ConfigManager
+            config_path = BASE_DIR / "oc_manager_data.json"
+            if config_path.exists():
+                cfg = ConfigManager(config_path)
+                msi_path = cfg.get("msi_path", "")
+                if msi_path:
+                    pm_dir = Path(msi_path).parent / "Profiles" / "ProfilesManager"
+                    if pm_dir.exists():
+                        start_dir = str(pm_dir)
+        except Exception:  # noqa: BLE001
+            pass
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Confronta con profilo (.cfg)",
+            start_dir,
+            "CFG Files (*.cfg);;Tutti i file (*)",
+        )
+        if not path:
+            self.btn_compare.setChecked(False)
+            self._refresh_compare_style()
+            return
+
+        try:
+            other = AfterburnerCfgFile.load(Path(path))
+            prof = other.get_profile(self.profile_section)
+            if prof is None or not prof.vfcurve_hex:
+                raise ValueError(
+                    f"Nessuna VFCurve in [{self.profile_section}]")
+            self._compare_points = decode_vfcurve(prof.vfcurve_hex)
+            parent = Path(path).parent
+            self._compare_label = (
+                parent.name if parent.name != "ProfilesManager"
+                else Path(path).stem)
+            self._redraw_compare()
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Confronto curve: {e}")
+            self.btn_compare.setChecked(False)
+            self._compare_points = None
+            self.compare_curve_item.setData([], [])
+        self._refresh_compare_style()
+
+    def _refresh_compare_style(self) -> None:
+        active = self.btn_compare.isChecked()
+        label = "CONFRONTA"
+        if active and self._compare_label:
+            label = f"VS {self._compare_label.upper()[:14]}"
+        self.btn_compare.setText(label)
+        self.btn_compare.setProperty("active", active)
+        self.btn_compare.style().unpolish(self.btn_compare)
+        self.btn_compare.style().polish(self.btn_compare)
+
+    def _redraw_compare(self) -> None:
+        """Disegna la curva di confronto (frequenza effettiva = f + delta)."""
+        if not self._compare_points or not self.btn_compare.isChecked():
+            self.compare_curve_item.setData([], [])
+            return
+        xs = [p.v_mv for p in self._compare_points]
+        ys = [p.f_mhz + p.c_delta for p in self._compare_points]
+        self.compare_curve_item.setData(xs, ys)
 
     def _redraw_consolidated(self):
         """

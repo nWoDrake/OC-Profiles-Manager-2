@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import subprocess
 import sys
 from datetime import datetime
@@ -24,10 +25,10 @@ from PySide6.QtGui import (
     QColor, QIcon, QKeySequence, QPainter, QPen, QPixmap, QShortcut,
 )
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QComboBox, QFileDialog, QFrame, QHBoxLayout,
-    QHeaderView, QLabel, QLineEdit, QListWidget, QMainWindow, QMenu,
-    QPushButton, QSizeGrip, QStackedWidget, QSystemTrayIcon, QTableWidget,
-    QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
+    QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFrame,
+    QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget, QMainWindow,
+    QMenu, QPushButton, QSizeGrip, QSpinBox, QStackedWidget, QSystemTrayIcon,
+    QTableWidget, QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget,
 )
 
 from cfg_editor.editor_widget import VFEditorWidget
@@ -132,6 +133,185 @@ class ProfileApplyWorker(QThread):
             self.finished.emit(False, self._profile, self._silent)
 
 
+class GpuStatsThread(QThread):
+    """
+    Telemetria GPU fuori dal thread UI (OPT 4, v2.7).
+
+    Le letture NVML possono bloccare per decine di ms su driver lenti:
+    questo thread campiona `GPUMonitor.get_stats()` a intervallo fisso ed
+    emette `stats_ready(dict)`; la UI aggiorna i widget nello slot.
+    """
+
+    stats_ready = Signal(dict)
+
+    def __init__(self, gpu_monitor, interval_ms: int):
+        super().__init__()
+        self._gpu = gpu_monitor
+        self._interval = max(200, int(interval_ms))
+        self._running = True
+        self._paused = False
+
+    def run(self) -> None:
+        while self._running:
+            if not self._paused:
+                try:
+                    self.stats_ready.emit(self._gpu.get_stats())
+                except Exception as e:  # noqa: BLE001
+                    logger.debug(f"GpuStatsThread: {e}")
+            self.msleep(self._interval)
+
+    def set_paused(self, paused: bool) -> None:
+        self._paused = paused
+
+    def stop(self) -> None:
+        self._running = False
+
+
+# ============================================================================
+# SCHEDULE RULES DIALOG (Feature E — v2.7)
+# ============================================================================
+
+class ScheduleRulesDialog(QDialog):
+    """Editor delle regole orarie dello scheduler profili.
+
+    Ogni regola: {"start": "HH:MM", "end": "HH:MM",
+                  "profile": str, "enabled": bool}.
+    Le fasce possono attraversare la mezzanotte (start > end).
+    """
+
+    def __init__(self, rules: list, profiles: list, parent=None):
+        super().__init__(parent)
+        from .style import STYLESHEET as _SS
+        self.result_rules: Optional[list] = None
+        self._rules = [dict(r) for r in rules]
+
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setMinimumWidth(520)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        container = QFrame(objectName="NotifyCard")
+        container.setStyleSheet(_SS)
+        outer.addWidget(container)
+        l = QVBoxLayout(container)
+        l.setContentsMargins(20, 20, 20, 20)
+        l.setSpacing(10)
+
+        l.addWidget(QLabel("Regole orarie scheduler",
+                           objectName="CompareSectionTitle"))
+        hint = QLabel("Formato HH:MM — le fasce possono attraversare la "
+                      "mezzanotte (es. 22:00 → 07:00). Doppio click per "
+                      "attivare/disattivare una regola.")
+        hint.setStyleSheet("color:#aaa;")
+        hint.setWordWrap(True)
+        l.addWidget(hint)
+
+        self.list_rules = QListWidget()
+        self.list_rules.setMinimumHeight(160)
+        self.list_rules.itemDoubleClicked.connect(self._toggle_selected)
+        l.addWidget(self.list_rules)
+
+        # ── Riga di inserimento ─────────────────────────────────────────
+        fl = QHBoxLayout()
+        fl.addWidget(QLabel("Dalle"))
+        self.ed_start = QLineEdit("22:00")
+        self.ed_start.setFixedWidth(64)
+        self.ed_start.setAlignment(Qt.AlignCenter)
+        fl.addWidget(self.ed_start)
+        fl.addWidget(QLabel("alle"))
+        self.ed_end = QLineEdit("07:00")
+        self.ed_end.setFixedWidth(64)
+        self.ed_end.setAlignment(Qt.AlignCenter)
+        fl.addWidget(self.ed_end)
+        fl.addWidget(QLabel("→"))
+        self.cmb_profile = QComboBox()
+        self.cmb_profile.addItems(profiles)
+        fl.addWidget(self.cmb_profile, 1)
+        btn_add = QPushButton("AGGIUNGI", objectName="ActionBtn")
+        btn_add.setFixedHeight(30)
+        btn_add.clicked.connect(self._add_rule)
+        fl.addWidget(btn_add)
+        l.addLayout(fl)
+
+        self.lbl_error = QLabel("")
+        self.lbl_error.setStyleSheet("color:#ff5555;")
+        self.lbl_error.hide()
+        l.addWidget(self.lbl_error)
+
+        # ── Pulsanti ────────────────────────────────────────────────────
+        bl = QHBoxLayout()
+        btn_del = QPushButton("RIMUOVI SELEZIONATA", objectName="ActionBtn")
+        btn_del.clicked.connect(self._remove_selected)
+        bl.addWidget(btn_del)
+        bl.addStretch()
+        bc = QPushButton("ANNULLA", objectName="ActionBtn")
+        bc.setAutoDefault(False)
+        bc.clicked.connect(self.reject)
+        bl.addWidget(bc)
+        bk = QPushButton("SALVA", objectName="ApplyBtn")
+        bk.setDefault(True)
+        bk.clicked.connect(self._accept)
+        bl.addWidget(bk)
+        l.addLayout(bl)
+
+        self._refresh_list()
+
+    # ── Helpers ─────────────────────────────────────────────────────────
+
+    def _refresh_list(self) -> None:
+        self.list_rules.clear()
+        for r in self._rules:
+            state = "●" if r.get("enabled", True) else "○"
+            self.list_rules.addItem(
+                f"{state}  {r.get('start', '?')} → {r.get('end', '?')}"
+                f"   ⇒   {r.get('profile', '?')}"
+            )
+
+    def _add_rule(self) -> None:
+        from oc_services import ProfileScheduler
+        start = self.ed_start.text().strip()
+        end = self.ed_end.text().strip()
+        if (ProfileScheduler._parse_hhmm(start) is None
+                or ProfileScheduler._parse_hhmm(end) is None):
+            self.lbl_error.setText("Orario non valido: usa il formato HH:MM")
+            self.lbl_error.show()
+            return
+        profile = self.cmb_profile.currentText()
+        if not profile:
+            self.lbl_error.setText("Nessun profilo selezionato")
+            self.lbl_error.show()
+            return
+        self.lbl_error.hide()
+        self._rules.append({"start": start, "end": end,
+                            "profile": profile, "enabled": True})
+        self._refresh_list()
+
+    def _remove_selected(self) -> None:
+        row = self.list_rules.currentRow()
+        if 0 <= row < len(self._rules):
+            self._rules.pop(row)
+            self._refresh_list()
+
+    def _toggle_selected(self) -> None:
+        row = self.list_rules.currentRow()
+        if 0 <= row < len(self._rules):
+            self._rules[row]["enabled"] = not self._rules[row].get(
+                "enabled", True)
+            self._refresh_list()
+            self.list_rules.setCurrentRow(row)
+
+    def _accept(self) -> None:
+        self.result_rules = self._rules
+        self.accept()
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802
+        if event.key() == Qt.Key_Escape:
+            self.reject()
+        else:
+            super().keyPressEvent(event)
+
+
 # ============================================================================
 # MAIN WINDOW
 # ============================================================================
@@ -189,14 +369,44 @@ class OCProfilesManager(QMainWindow):
         self.process_monitor.profile_changed.connect(self._on_auto_profile_change)
         self.process_monitor.start()
 
-        # Timers
-        self.gpu_timer = QTimer(self)
-        self.gpu_timer.timeout.connect(self._update_gpu_stats)
-        self.gpu_timer.start(TIMING["gpu_update_interval"])
+        # Telemetria GPU in thread dedicato (OPT 4, v2.7)
+        self.gpu_thread = GpuStatsThread(
+            self.gpu_monitor, TIMING["gpu_update_interval"])
+        self.gpu_thread.stats_ready.connect(self._on_gpu_stats)
+        self.gpu_thread.start()
 
         self.msi_status_timer = QTimer(self)
         self.msi_status_timer.timeout.connect(self._update_msi_status)
         self.msi_status_timer.start(TIMING["msi_status_interval"])
+
+        # ── Servizi v2.7 ────────────────────────────────────────────────
+        from oc_services import BackupManager, ProfileScheduler, TempWatchdog
+        self._backup_mgr = BackupManager(self.profile_mgr.manager_root)
+        self._scheduler = ProfileScheduler(self.config_mgr)
+        self._watchdog = TempWatchdog(self.config_mgr)
+        self._hotkeys = None  # GlobalHotkeyListener (lazy)
+
+        # B — Backup automatico all'avvio (thread daemon, non blocca la UI)
+        if self.config_mgr.get("auto_backup_enabled", True):
+            retention = int(self.config_mgr.get("auto_backup_retention", 10))
+            threading.Thread(
+                target=lambda: self._backup_mgr.auto_backup(retention),
+                daemon=True,
+            ).start()
+
+        # E — Scheduler orario (tick ogni 30 s)
+        self.scheduler_timer = QTimer(self)
+        self.scheduler_timer.timeout.connect(self._check_scheduler)
+        self.scheduler_timer.start(30_000)
+
+        # F — Hotkey globali Ctrl+Alt+1..9
+        if self.config_mgr.get("global_hotkeys_enabled", True):
+            self._start_global_hotkeys()
+
+        # H — Check aggiornamenti GitHub (thread daemon)
+        if self.config_mgr.get("check_updates", True):
+            threading.Thread(
+                target=self._check_updates_bg, daemon=True).start()
 
         # Startup
         mode = "Nvidia API" if self.gpu_monitor.is_real_hardware else "Simulazione"
@@ -239,9 +449,16 @@ class OCProfilesManager(QMainWindow):
             return
         self._closing = True
 
-        for timer in (self.gpu_timer, self.msi_status_timer):
+        for timer in (self.msi_status_timer, self.scheduler_timer):
             if timer.isActive():
                 timer.stop()
+
+        self.gpu_thread.stop()
+        if not self.gpu_thread.wait(2000):
+            self.gpu_thread.terminate()
+            self.gpu_thread.wait(500)
+
+        self._stop_global_hotkeys()
 
         self.process_monitor.stop()
         if not self.process_monitor.wait(3000):
@@ -864,6 +1081,104 @@ class OCProfilesManager(QMainWindow):
         cl.addWidget(self.chk_gpu_pause_hidden)
         cl.addStretch()
         l.addLayout(cl)
+
+        l.addSpacing(20)
+
+        # ── FUNZIONI v2.7 ────────────────────────────────────────────────
+        l.addWidget(QLabel("Protezioni & Automazione", objectName="SectionTitle"))
+
+        # B — Auto backup
+        abl = QHBoxLayout()
+        self.chk_auto_backup = QCheckBox("Backup automatico profili all'avvio (zip)")
+        self.chk_auto_backup.setChecked(
+            self.config_mgr.get("auto_backup_enabled", True))
+        self.chk_auto_backup.stateChanged.connect(
+            lambda s: self.config_mgr.set("auto_backup_enabled", s == Qt.Checked))
+        abl.addWidget(self.chk_auto_backup)
+        btn_backup_now = QPushButton("BACKUP ORA", objectName="ActionBtn")
+        btn_backup_now.setFixedHeight(30)
+        btn_backup_now.clicked.connect(self._backup_now)
+        abl.addWidget(btn_backup_now)
+        btn_backup_dir = QPushButton("APRI CARTELLA BACKUP", objectName="ActionBtn")
+        btn_backup_dir.setFixedHeight(30)
+        btn_backup_dir.clicked.connect(
+            lambda: open_in_explorer(self._backup_mgr.backup_dir))
+        abl.addWidget(btn_backup_dir)
+        abl.addStretch()
+        l.addLayout(abl)
+
+        # F — Hotkey globali
+        hkl = QHBoxLayout()
+        self.chk_hotkeys = QCheckBox(
+            "Hotkey globali Ctrl+Alt+1..9 (applica l'N° profilo)")
+        self.chk_hotkeys.setChecked(
+            self.config_mgr.get("global_hotkeys_enabled", True))
+        self.chk_hotkeys.stateChanged.connect(self._toggle_hotkeys)
+        hkl.addWidget(self.chk_hotkeys)
+        hkl.addStretch()
+        l.addLayout(hkl)
+
+        # H — Check aggiornamenti
+        upl = QHBoxLayout()
+        self.chk_updates = QCheckBox("Controlla aggiornamenti all'avvio (GitHub)")
+        self.chk_updates.setChecked(self.config_mgr.get("check_updates", True))
+        self.chk_updates.stateChanged.connect(
+            lambda s: self.config_mgr.set("check_updates", s == Qt.Checked))
+        upl.addWidget(self.chk_updates)
+        upl.addStretch()
+        l.addLayout(upl)
+
+        # G — Watchdog temperatura
+        wdl = QHBoxLayout()
+        self.chk_watchdog = QCheckBox("Watchdog temperatura: sopra")
+        self.chk_watchdog.setChecked(
+            self.config_mgr.get("temp_watchdog_enabled", False))
+        self.chk_watchdog.stateChanged.connect(
+            lambda s: self.config_mgr.set("temp_watchdog_enabled", s == Qt.Checked))
+        wdl.addWidget(self.chk_watchdog)
+        self.spin_wd_temp = QSpinBox()
+        self.spin_wd_temp.setRange(60, 110)
+        self.spin_wd_temp.setSuffix(" °C")
+        self.spin_wd_temp.setValue(
+            int(self.config_mgr.get("temp_watchdog_threshold", 90)))
+        self.spin_wd_temp.valueChanged.connect(
+            lambda v: self.config_mgr.set("temp_watchdog_threshold", int(v)))
+        wdl.addWidget(self.spin_wd_temp)
+        wdl.addWidget(QLabel("per"))
+        self.spin_wd_dur = QSpinBox()
+        self.spin_wd_dur.setRange(3, 120)
+        self.spin_wd_dur.setSuffix(" s")
+        self.spin_wd_dur.setValue(
+            int(self.config_mgr.get("temp_watchdog_duration_s", 10)))
+        self.spin_wd_dur.valueChanged.connect(
+            lambda v: self.config_mgr.set("temp_watchdog_duration_s", int(v)))
+        wdl.addWidget(self.spin_wd_dur)
+        wdl.addWidget(QLabel("→ applica"))
+        self.combo_wd_profile = QComboBox()
+        self._reload_wd_profiles()
+        self.combo_wd_profile.currentTextChanged.connect(
+            lambda t: self.config_mgr.set("temp_watchdog_profile", t) if t else None)
+        wdl.addWidget(self.combo_wd_profile)
+        wdl.addStretch()
+        l.addLayout(wdl)
+
+        # E — Scheduler orario
+        schl = QHBoxLayout()
+        self.chk_scheduler = QCheckBox("Scheduler orario profili")
+        self.chk_scheduler.setChecked(
+            self.config_mgr.get("scheduler_enabled", False))
+        self.chk_scheduler.stateChanged.connect(
+            lambda s: self.config_mgr.set("scheduler_enabled", s == Qt.Checked))
+        schl.addWidget(self.chk_scheduler)
+        btn_sched = QPushButton("REGOLE ORARIE...", objectName="ActionBtn")
+        btn_sched.setFixedHeight(30)
+        btn_sched.clicked.connect(self._edit_schedule_rules)
+        schl.addWidget(btn_sched)
+        self.lbl_sched_count = QLabel()
+        self._update_sched_count()
+        schl.addWidget(self.lbl_sched_count)
+        schl.addStretch()
+        l.addLayout(schl)
 
         l.addSpacing(20)
 
@@ -1511,12 +1826,17 @@ class OCProfilesManager(QMainWindow):
         if active == "Default":
             active = default_alias
 
+        # OPT 3 (v2.7): una sola lettura del file icone per refresh
+        all_icons = self.ctrl.get_profile_icons()
+
         infos: List[ProfileCardInfo] = []
         for name in self.profile_mgr.list_profiles():
             if self._profile_filter and self._profile_filter not in name.lower():
                 continue
             profile_dir = self.profile_mgr.get_profile_dir(name)
-            icon_key, icon_custom = self.ctrl.get_profile_icon(name)
+            icon_data = all_icons.get(name, {})
+            icon_key = icon_data.get("key", "")
+            icon_custom = icon_data.get("custom", "")
             info = self._profile_extractor.extract(
                 profile_name=name,
                 profile_dir=profile_dir,
@@ -1551,8 +1871,8 @@ class OCProfilesManager(QMainWindow):
     # GPU STATS
     # ================================================================
 
-    def _update_gpu_stats(self) -> None:
-        s = self.gpu_monitor.get_stats()
+    def _on_gpu_stats(self, s: dict) -> None:
+        """Slot: dati telemetria dal GpuStatsThread (thread-safe via Signal)."""
         self.gauge_temp.set_value(s["temp"])
         self.gauge_load.set_value(s["load"])
         self.gauge_fan.set_value(s["fan"])
@@ -1564,6 +1884,156 @@ class OCProfilesManager(QMainWindow):
         self.chart_load.add_point(s["load"])
         self.chart_power.add_point(s["power"])
         self.chart_vram.add_point(s["vram"])
+
+        # G — Watchdog temperatura (v2.7)
+        try:
+            safe_profile = self._watchdog.feed(float(s.get("temp", 0)))
+            if safe_profile:
+                self.add_log(
+                    f"[WATCHDOG] Temperatura critica → applico '{safe_profile}'")
+                self.ctrl.play_sound("error")
+                self._show_notification(
+                    f"⚠ Watchdog temperatura!\nApplico profilo: {safe_profile}")
+                self._apply_profile(safe_profile, silent=False)
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"Watchdog: {e}")
+
+    # ================================================================
+    # SERVIZI v2.7 — Backup / Scheduler / Hotkeys / Watchdog / Update
+    # ================================================================
+
+    def _backup_now(self) -> None:
+        """B — Crea subito un backup zip dei profili (in thread)."""
+        def worker() -> None:
+            try:
+                path = self._backup_mgr.create_backup()
+                retention = int(self.config_mgr.get("auto_backup_retention", 10))
+                self._backup_mgr.prune_old(keep=retention)
+                msg = (f"Backup creato: {path.name}" if path
+                       else "Backup fallito (vedi log)")
+            except Exception as e:  # noqa: BLE001
+                msg = f"Backup fallito: {e}"
+
+            def notify() -> None:
+                self.add_log(f"[BACKUP] {msg}")
+                self._show_notification(msg)
+            QTimer.singleShot(0, notify)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _toggle_hotkeys(self, state: int) -> None:
+        """F — Attiva/disattiva le hotkey globali dalla checkbox."""
+        enabled = state == Qt.Checked
+        self.config_mgr.set("global_hotkeys_enabled", enabled)
+        if enabled:
+            self._start_global_hotkeys()
+            self.add_log("[HOTKEY] Hotkey globali attivate (Ctrl+Alt+1..9)")
+        else:
+            self._stop_global_hotkeys()
+            self.add_log("[HOTKEY] Hotkey globali disattivate")
+
+    def _reload_wd_profiles(self) -> None:
+        """G — Ripopola la combo del profilo watchdog dai profili correnti."""
+        combo = self.combo_wd_profile
+        combo.blockSignals(True)
+        try:
+            combo.clear()
+            profiles = self.profile_mgr.list_profiles() + ["Default"]
+            combo.addItems(profiles)
+            target = self.config_mgr.get("temp_watchdog_profile", "Default")
+            idx = combo.findText(target)
+            combo.setCurrentIndex(idx if idx >= 0 else combo.count() - 1)
+        finally:
+            combo.blockSignals(False)
+
+    def _update_sched_count(self) -> None:
+        """E — Aggiorna il contatore regole accanto al pulsante scheduler."""
+        rules = self.config_mgr.get("schedule_rules", []) or []
+        active = sum(1 for r in rules if r.get("enabled", True))
+        self.lbl_sched_count.setText(
+            f"{active} regole attive / {len(rules)} totali" if rules
+            else "nessuna regola")
+        self.lbl_sched_count.setStyleSheet("color:#888;")
+
+    def _edit_schedule_rules(self) -> None:
+        """E — Apre il dialog di editing delle regole orarie."""
+        rules = self.config_mgr.get("schedule_rules", []) or []
+        profiles = self.profile_mgr.list_profiles() + ["Default"]
+        dlg = ScheduleRulesDialog(rules, profiles, self)
+        if dlg.exec() and dlg.result_rules is not None:
+            self.config_mgr.set("schedule_rules", dlg.result_rules)
+            self._scheduler.reset()
+            self._update_sched_count()
+            self.add_log(
+                f"[SCHEDULER] Regole aggiornate ({len(dlg.result_rules)})")
+
+    def _check_scheduler(self) -> None:
+        """E — Scheduler orario: applica il profilo della regola attiva.
+
+        Il monitor processi ha priorità: se un'app associata è attiva,
+        lo scheduler non interviene.
+        """
+        try:
+            if self._process_logic.is_associated_app_running():
+                return
+            profile = self._scheduler.check()
+            if not profile:
+                return
+            available = self.profile_mgr.list_profiles() + ["Default"]
+            if profile not in available:
+                self.add_log(f"[SCHEDULER] Profilo '{profile}' inesistente, salto")
+                return
+            if profile == self.ctrl.current_profile:
+                return
+            self.add_log(f"[SCHEDULER] Fascia oraria attiva → {profile}")
+            self._apply_profile(profile, silent=False)
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"Scheduler check: {e}")
+
+    def _start_global_hotkeys(self) -> None:
+        """F — Registra Ctrl+Alt+1..9 come hotkey globali Windows."""
+        from oc_services import GlobalHotkeyListener
+        if self._hotkeys is not None:
+            return
+
+        def on_hotkey(n: int) -> None:
+            # Callback dal thread hotkey → rimbalza sul thread UI
+            QTimer.singleShot(0, lambda: self._on_hotkey_profile(n))
+
+        self._hotkeys = GlobalHotkeyListener(on_hotkey)
+        self._hotkeys.start()
+
+    def _stop_global_hotkeys(self) -> None:
+        if self._hotkeys is not None:
+            self._hotkeys.stop()
+            self._hotkeys = None
+
+    def _on_hotkey_profile(self, n: int) -> None:
+        """Ctrl+Alt+N → applica l'N-esimo profilo (ordine alfabetico)."""
+        profiles = self.profile_mgr.list_profiles()
+        if n < 1 or n > len(profiles):
+            return
+        profile = profiles[n - 1]
+        self.add_log(f"[HOTKEY] Ctrl+Alt+{n} → {profile}")
+        self._apply_profile(profile, silent=False)
+        self._show_notification(f"Hotkey: profilo {profile}")
+
+    def _check_updates_bg(self) -> None:
+        """H — Check release GitHub (in thread; notifica sul thread UI)."""
+        from oc_services import UpdateChecker
+        try:
+            info = UpdateChecker.check()
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"Update check: {e}")
+            return
+        if info:
+            def notify() -> None:
+                self.add_log(
+                    f"[UPDATE] Nuova versione disponibile: {info['version']}")
+                self._show_notification(
+                    f"Aggiornamento disponibile: {info['version']}\n"
+                    f"Vai su GitHub → Releases")
+            QTimer.singleShot(0, notify)
 
     # ================================================================
     # AUTO PROFILE CHANGE
@@ -1715,16 +2185,14 @@ class OCProfilesManager(QMainWindow):
                 "OC Manager", "Minimizzato in tray.",
                 QSystemTrayIcon.Information, 2000,
             )
-        # Risparmio CPU: pausa timer GPU
+        # Risparmio CPU: pausa telemetria GPU
         if self.config_mgr.get("gpu_pause_when_hidden", True):
-            if self.gpu_timer.isActive():
-                self.gpu_timer.stop()
+            self.gpu_thread.set_paused(True)
 
     def _restore_from_tray(self) -> None:
         self.showNormal()
         self.activateWindow()
-        if not self.gpu_timer.isActive():
-            self.gpu_timer.start(TIMING["gpu_update_interval"])
+        self.gpu_thread.set_paused(False)
 
     def _toggle_maximize(self) -> None:
         if self.isMaximized():

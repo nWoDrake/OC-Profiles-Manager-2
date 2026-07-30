@@ -25,7 +25,7 @@ from typing import Optional
 # ============================================================================
 
 APP_NAME: str = "OCProfilesManager"
-APP_VERSION: str = "2.6.3"
+APP_VERSION: str = "2.7.0"
 APP_AUTHOR: str = "OC Profiles Team"
 BASE_DIR: Path = Path(__file__).parent
 
@@ -52,6 +52,18 @@ DEFAULT_CONFIG = {
     "log_level": "INFO",             # DEBUG/INFO/WARNING/ERROR
     # Theme system (v2.5+)
     "ui_theme": "red_glossy",        # id del tema UI attivo (cartella in themes/)
+
+    # ── v2.7 ────────────────────────────────────────────────────────────
+    "auto_backup_enabled": True,     # B — zip dei profili all'avvio
+    "auto_backup_retention": 10,     # B — quanti zip mantenere
+    "scheduler_enabled": False,      # E — scheduler orario profili
+    "schedule_rules": [],            # E — [{"start":"22:00","end":"07:00","profile":"Silent","enabled":True}]
+    "global_hotkeys_enabled": True,  # F — Ctrl+Alt+1..9 → N° profilo
+    "temp_watchdog_enabled": False,  # G — watchdog temperatura GPU
+    "temp_watchdog_threshold": 90,   # G — soglia °C
+    "temp_watchdog_duration_s": 10,  # G — secondi sopra soglia prima del trigger
+    "temp_watchdog_profile": "Default",  # G — profilo safe da applicare
+    "check_updates": True,           # H — check release GitHub all'avvio
 }
 
 # ============================================================================

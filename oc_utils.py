@@ -15,6 +15,7 @@ import logging
 import os
 import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional, Set
@@ -170,14 +171,31 @@ def format_duration_short(seconds: float) -> str:
 # PSUTIL — snapshot processi
 # ============================================================================
 
-def snapshot_running_exes() -> Set[str]:
+# Cache TTL condivisa: un solo scan psutil al secondo serve tutti i chiamanti
+# (monitor processi, check MSI Afterburner, ecc.). Thread-safe.
+_SNAPSHOT_TTL_S: float = 1.0
+_snapshot_lock = threading.Lock()
+_snapshot_cache: Set[str] = set()
+_snapshot_time: float = 0.0
+
+
+def snapshot_running_exes(*, max_age_s: float = _SNAPSHOT_TTL_S) -> Set[str]:
     """
     Restituisce un set di nomi eseguibili (lowercased) attualmente in esecuzione.
     Robusto contro processi che scompaiono mid-iterazione.
 
+    Il risultato è cachato per `max_age_s` secondi (default 1.0) e condiviso
+    tra tutti i chiamanti: passare max_age_s=0 forza uno scan fresco.
+
     Nota: l'iterazione è veloce ma fatta SENZA tenere lock applicativi
     (chi chiama deve evitare di tenere lock pesanti durante la chiamata).
     """
+    global _snapshot_cache, _snapshot_time
+    now = time.monotonic()
+    with _snapshot_lock:
+        if max_age_s > 0 and (now - _snapshot_time) < max_age_s and _snapshot_cache:
+            return set(_snapshot_cache)  # copia difensiva
+
     active: Set[str] = set()
     try:
         for p in psutil.process_iter(["name"]):
@@ -191,7 +209,11 @@ def snapshot_running_exes() -> Set[str]:
                 continue
     except Exception as e:  # noqa: BLE001
         logger.debug(f"snapshot_running_exes error: {e}")
-    return active
+
+    with _snapshot_lock:
+        _snapshot_cache = active
+        _snapshot_time = time.monotonic()
+    return set(active)
 
 
 def any_exe_running(exe_names: Iterable[str]) -> bool:

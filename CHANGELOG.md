@@ -2,6 +2,70 @@
 
 Tutti i cambiamenti significativi del progetto sono documentati qui.
 
+## [2.7.0] — 2026-07-30
+
+### ✨ Nuove funzioni
+
+- **CLI headless `--apply <profilo>`** (`main.py`) — applica un profilo da
+  riga di comando senza avviare la GUI. Exit code: `0` ok, `1` errore,
+  `2` MSI AB non configurato, `3` profilo inesistente. Ideale per script,
+  Task Scheduler e integrazioni esterne.
+- **Backup automatico profili** (`oc_services.BackupManager`) — zip di tutta
+  la cartella profili in `ProfilesManager_Backups/` all'avvio (opzionale),
+  con retention configurabile (default 10), pulsanti "BACKUP ORA" e "APRI
+  CARTELLA BACKUP" nelle impostazioni e `restore_backup()` con protezione
+  zip-slip.
+- **Confronto curve V/F nel CFG Editor** — nuovo pulsante **CONFRONTA**:
+  sovrappone la curva di un altro profilo (tratteggiata, ciano) a quella in
+  editing, per confrontare a colpo d'occhio due tuning.
+- **Scheduler orario profili** (`oc_services.ProfileScheduler`) — regole
+  a fasce orarie (`{start, end, profile, enabled}`) con supporto fasce che
+  attraversano la mezzanotte (es. 22:00 → 07:00), editor dedicato nelle
+  impostazioni (dialog "REGOLE ORARIE..."), applicazione edge-triggered
+  (mai ri-applica ogni tick) e priorità al monitor processi.
+- **Hotkey globali Ctrl+Alt+1..9** (`oc_services.GlobalHotkeyListener`) —
+  applicano l'N-esimo profilo (ordine alfabetico) da qualunque app, anche
+  a schermo intero. RegisterHotKey nativo Win32 in thread dedicato.
+- **Watchdog temperatura GPU** (`oc_services.TempWatchdog`) — se la GPU
+  resta sopra la soglia (default 90 °C) per N secondi (default 10), applica
+  automaticamente un profilo "safe" con notifica e suono. Isteresi di 5 °C
+  per il ri-arm.
+- **Check aggiornamenti GitHub** (`oc_services.UpdateChecker`) — all'avvio
+  (opzionale) interroga l'ultima release del repo e notifica se esiste una
+  versione più recente.
+
+### 🎨 Nuovo tema "Liquid Glass"
+
+- **`themes/liquid_glass/`** — seconda UI completa selezionabile da
+  Impostazioni → Aspetto: superfici traslucide ad alta trasparenza, bordi
+  luminosi, accento ciano, raggi ampi e micro-animazioni (fade-in della
+  finestra, transizioni di pagina con dissolvenza, acrylic Windows con
+  tinta blu, bordo con glow ciano). Implementato riusando la MainWindow di
+  red_glossy re-skinnata (zero duplicazione di logica).
+
+### ⚡ Ottimizzazioni
+
+- **Cache TTL snapshot processi** (`oc_utils.snapshot_running_exes`) — un
+  solo scan psutil al secondo condiviso tra monitor processi e check MSI AB
+  (prima: 2+ scan/tick).
+- **Telemetria GPU fuori dal thread UI** (`GpuStatsThread`) — le letture
+  NVML girano in un QThread dedicato con `Signal(dict)`; la UI non si
+  blocca mai su driver lenti. In tray il thread va in pausa.
+- **`log_level` di config finalmente applicato** — la chiave esistente ora
+  regola il livello del logging console (il file resta a DEBUG).
+- **Vista card: 1 sola lettura icone** — `get_profile_icons()` chiamata una
+  volta per refresh invece che per ogni card.
+- **Config prefetch nel monitor processi** — `process_match_mode` e
+  `process_priority` letti una volta per tick, non per ogni exe.
+- **Reflow griglia card skippato** se colonne e ordine non cambiano.
+
+### ⚙️ Nuove chiavi config
+
+`auto_backup_enabled`, `auto_backup_retention`, `scheduler_enabled`,
+`schedule_rules`, `global_hotkeys_enabled`, `temp_watchdog_enabled`,
+`temp_watchdog_threshold`, `temp_watchdog_duration_s`,
+`temp_watchdog_profile`, `check_updates`.
+
 ## [2.5.0] — 2026-05-25
 
 ### ✨ Theme System — UI multiple intercambiabili
